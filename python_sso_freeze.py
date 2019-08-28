@@ -3,7 +3,7 @@
 
 # ## <u> sso-freeze - Python </u>
 # 
-# The following code is a script that takes Gladstone's stop_hrci and translates it into python.
+# As described in *Weigt et al. (in prep.)* The following code is a script that takes Gladstone's stop_hrci and translates it into python.
 # This code has been split up into the different section for each different functions carried out.
 # 
 # <i>End Goal </i>: To simply enter the OBSid -> gather the selected files -> apply ''sso_freeze'' -> output the corrected file
@@ -22,25 +22,21 @@
 # *5)* The new positions of the photons replace the uncorrected positions from the fits file and is written to a new fits file. </br>
 # 
 
-# In[ ]:
+# #### <u><i> Hardwire locations </u></i> 
+# 
+# In the cells below, there are various hardwire locations that need to be inputted (hopefully once this code is properly optimised, there should be no need for this).
+# 
+# The hardwire locations are as follows:
+# 
+# <b>EDIT:</b>
+# 
+# *Section 1)*: <b>evt_location</b> -> enter path of the event file to be corrected and orbit ephemeris file
+# 
+# *Section 3)*: <b>eph_location</b> -> enter path of the chandra_horizons2000 file used (from folder of horizons2000 files) 
+# 
+# *Section 5)*: The save file will now be saved to the same location as the original event and orbit ephemeris file under the name "\hrcf%s_pytest_evt2.fits" where %s is the obs_id (automatically inputted when file is saved).
 
-
-#### <u><i> Hardwire locations </u></i> 
-
-#In the cells below, there are various hardwire locations that need to be inputted (hopefully once this code is properly optimised, there should be no need for this).
-
-#The hardwire locations are as follows:
-
-#*Section 1)*: <b>evt_location</b> -> enter path of the event file to be corrected
-
-#*Section 2)*: <b>orb_location</b> -> enter path of the orbit empheris file of the spacecraft
-
-#*Section 3)*: <b>eph_location</b> -> enter path of the chandra_horizons2000 file used (from folder of horizons2000 files)
-
-#*Section 5)*: <b>new_evt_location</b> -> enter path of the new corrected fits file to be written to
-
-
-# In[ ]:
+# In[2]:
 
 
 #Purpose: Read in Chandra event file and empheris files. Correct event file by time-tagging photons to their position
@@ -49,6 +45,8 @@
 #Authors: Dale Weigt (D.M.Weigt@soton.ac.uk), apadpted from Randy Gladstone's 'stop_hrci' IDL script
 
 """All the relevant packages are imported for code below"""
+import go_chandra_analysis_tools as gca_tools # import the defined functions to analysis Chandra data and 
+#perfrom coordinate transformations
 
 import numpy as np
 import math
@@ -73,8 +71,8 @@ from astropy.convolution import convolve, Box1DKernel
 from scipy import interpolate
 
 """Below are a list of defined functions used in the code below
-----------------------------------------------------------------
-(Look into providing help pages plus errors - look at Hull stuff)"""
+----------------------------------------------------------------"""
+
 
 def doy_frac(DOY, hour, minutes, seconds): # function takes a given DOY, hour, minutes, seconds...
     frac = DOY + hour/24.0 + minutes/1440.0 + seconds/86400.0 #... and calualtes the correct DOY fraction.
@@ -92,21 +90,27 @@ matplotlib.rcParams['agg.path.chunksize'] = 1000000
 AU_2_m = 1.49598E+11
 
 
-# In[ ]:
+# In[3]:
 
 
 """SECTION 1)"""
+
+folder_path = input('Enter file path of event and orbit ephermis file: ')   
+
 # The code below reads in the Chandra event file and extracts the relevant header info needed later
+evt_location = []
 
-evt_location = r'C:\Users\dmw1n18\Documents\PhD\Chandra\Data\20002\primary\hrcf20002N002_evt2.fits' # path of .evt file to be 
-#corrected
+for file in glob.glob(str(folder_path) + r"hrcf*_evt2.fits"): # path of .evt file to be corrected
+    evt_location.append(file)
 
-evt_file = pyfits.open(evt_location)
+evt_file = pyfits.open(evt_location[0])
 # event file is read in and opened to extract header info
 evt_hdr = evt_file[1].header # event file header...
 evt_data = evt_file[1].data #...and associated date with each header
 evt_time = evt_data['TIME'] # time of each photon observred as it reaches detector(???)
-start_time = evt_hdr['TSTART'] # start time of observation (in seconds)
+tstart = evt_hdr['TSTART'] # start time of observation (in seconds)
+tend = evt_hdr['TSTOP'] # end time of observation (in seconds)
+obs_id = evt_hdr['OBS_ID']
 start_date = evt_hdr['DATE-OBS'] # start date of observation
 evt_x = evt_data['X'] # x position of target
 evt_y = evt_data['Y'] # y position of target
@@ -122,20 +126,24 @@ evt_doy = evt_date.strftime('%j') # doy of observation
 evt_mins = evt_date.minute # minute of observation
 evt_secs = evt_date.second # second of observation
 evt_DOYFRAC = doy_frac(float(evt_doy), float(evt_hour), float(evt_mins), float(evt_secs)) # calculating the DOYFRAC
-chand_time = (evt_time - start_time)/86400.0 # calculating time cadence of chandra...
+chand_time = (evt_time - tstart)/86400.0 # calculating time cadence of chandra...
 doy_chandra = chand_time + evt_DOYFRAC #... to calculate the DOY of chandra
 
 
-# In[ ]:
+# In[4]:
 
 
 """SECTION 2)"""
 # The code below reads in the orbit empheris file for the identified OBSid
 
-orb_location = r'C:\Users\dmw1n18\Documents\PhD\Chandra\Data\20002\primary\orbitf617803505N001_eph1.fits' # path of orbit empheris 
+orb_location = []
+for orb_file in glob.glob(str(folder_path) + r"orbit*_eph1.fits"): # path of .evt file to be corrected
+    orb_location.append(orb_file)
+
+    
 # file used corresponding to the event file
 
-orb_file = pyfits.open(orb_location)
+orb_file = pyfits.open(orb_location[0])
 # orbit empheris file is read in...
 hdr = orb_file[1].header #...header information is extacted...
 data = orb_file[1].data #...and the relevant data us also extracted
@@ -145,16 +153,19 @@ orb_y = data['Y'] # y position of spacecraft
 orb_z = data['Z'] # z position of spacecraft
 orb_file.close()
 
-doy_sc = (orb_time - start_time) /86400.0 + evt_DOYFRAC # doy of spacecraft
+doy_sc = (orb_time - tstart) /86400.0 + evt_DOYFRAC # doy of spacecraft
 
 
-# In[ ]:
+# In[6]:
 
 
 """SECTION 3)"""
-# The code below reads in the chandra_horizons file and extracts the relevant data and inerpolate the data.
 
-eph_location = r"C:\Users\dmw1n18\Documents\PhD\Chandra\Data\Chandra_Horizons_files\chandra_horizons2000_20002_e.txt" # path of
+eph_path = input('Enter file path JPL Horizons (Chandra_horizons) file for Jupiter ephemeris: ')  
+
+# The code below reads in the JPL horizons file and extracts the relevant data and interpolate the data.
+
+eph_location =  (str(eph_path) + r"chandra_horizons2000_%s_e.txt" %obs_id)# path of
 # chandra_horizons2000 file used from Chandra_Horizons_files folder
 
 eph_data = [] # empty array created in order to add the empheris data once loop is completed
@@ -204,7 +215,7 @@ day added on."""
 
 eph_leap = eph_dates.is_leap_year # To check if the date is a leap year
 bdayx = bday[eph_month - 1] # end of doy associated with the (month number -1) from the horizons file
-leap_condition = np.where((eph_leap == True) & (eph_month > 2)) # look for non-zero values where the date is a leap year and the 
+leap_condition = np.where((eph_leap == True) & (eph_month > 2))[0] # look for non-zero values where the date is a leap year and the 
 # month of observation is beyond Feb...
 #leap_condition = np.where((eph_leap_test == True) & (eph_month_test > 2))
 leap_count = np.count_nonzero(leap_condition)#...and then count the number of times this occurs
@@ -215,26 +226,29 @@ if leap_count > 0:                                        # if there are more th
     eph_doyfrac = doy_frac(bdayx, eph_df['hour'], eph_df['minutes'], eph_df['seconds']) + eph_day
     #...the DOYFRAC is calculated for the dates (leap year) and...
     eph_df['DOYFRAC'] = eph_doyfrac #...added as a new column in the data frame
-else:
+else:                                                     
     print('Not a leap year')                              # if the date is not a leap year, carry out the same calculation
                                                           # without correcting for a leap year
     eph_doyfrac = doy_frac(bdayx, eph_df['hour'], eph_df['minutes'], eph_df['seconds']) + eph_day
     eph_df['DOYFRAC'] = eph_doyfrac 
 
 
-# In[ ]:
+# In[7]:
 
 
 """SECTION 4)"""
 
-interpfunc_x = interpolate.interp1d(doy_sc, orb_x)
+interpfunc_x = interpolate.interp1d(doy_sc, orb_x) 
 interpfunc_y = interpolate.interp1d(doy_sc, orb_y)
 interpfunc_z = interpolate.interp1d(doy_sc, orb_z)
+
 # Above code creates a linear intepolation function that interpolates the spacecraft DOY and the positional coordinates from
 # the orbital empheris file to...
-orb_x_interp = interpfunc_x(eph_doyfrac)
+
+orb_x_interp = interpfunc_x(eph_doyfrac)   
 orb_y_interp = interpfunc_y(eph_doyfrac)
 orb_z_interp = interpfunc_z(eph_doyfrac)
+
 #... the DOY from the empheris file (2 day window in this case) to produce the new orbit positional coordinates within this time
 #range
 r_jup = np.array(eph_df['Jupiter-Chandra Distance'].astype(float))*AU_2_m # Jupiter chandra distance 
@@ -253,52 +267,28 @@ cc = np.cos(np.deg2rad(DEC_0)) # offset from Jupiter to allow photons to be trac
 
 interpfunc_ra_jup = interpolate.interp1d(eph_doyfrac, rap_jup) 
 interpfunc_dec_jup = interpolate.interp1d(eph_doyfrac, decp_jup) 
-ra_jup_interp = interpfunc_ra_jup(doy_chandra) # interpolated RA of Jupiter to the DOY of the emphermis file to the Chandra DOY
-dec_jup_interp = interpfunc_dec_jup(doy_chandra) # interpolated DEC of Jupiter to the DOY from the emphermis file to the Chandra
+ra_jup_interp = interpfunc_ra_jup(doy_chandra) # interpolated RA of Jupiter and the DOY of the emphermis file to the Chandra DOY
+dec_jup_interp = interpfunc_dec_jup(doy_chandra) # interpolated DEC of Jupiter and the DOY from the emphermis file to the Chandra
 #DOY
 
 xx = (evt_x - (RA_0 - ra_jup_interp) * 3600.0 / 0.13175 * cc).astype(float) # corrected x position of photons
 yy = (evt_y + (DEC_0 - dec_jup_interp) * 3600.0 / 0.13175).astype(float) # corrected y position of photons
 
 
-# In[ ]:
+# In[8]:
 
 
 """SECTION 5)"""
 
-new_evt_location = r'C:\Users\dmw1n18\Documents\PhD\Chandra\Data\20002\primary\hrcf20002N002_evt2_pytest.fits' # path of the location
+new_evt_location = (str(folder_path) + r"\hrcf%s_pytest_evt2.fits"%obs_id) # path of the location
 # for the corrected fits file (with the photons corrected for the position).
 
-new_evt_data, new_evt_header = pyfits.getdata(evt_location, header=True)
+new_evt_data, new_evt_header = pyfits.getdata(evt_location[0], header=True)
 # original fits file is read in again to obtain the data - data and header values are assigned to a new variable to avoid overwriting
 # the original file
 new_evt_data['X'] = xx # New x coord of photons added to fits file under previous data header 'X'
 new_evt_data['Y'] = yy # New y coord of photons added to fits file under previous data header 'Y'
 pyfits.writeto(new_evt_location, new_evt_data, new_evt_header, clobber=True)
 # new fits file is written with the correction to the position of the photons witht he original file remaining the same
-
-
-# In[ ]:
-
-
-"""Below is a plot of the normalised spacecraft position (x,y,z) vs the DOY to ensure that the interpolated distances lie on the
-correct DOY from the emphermis file - denoted by the two vertical red lines"""
-
-fig=plt.figure(figsize=(15, 10))
-axes = plt.gca()
-
-axes.set_xlabel('DOY')
-axes.set_ylabel('Normalised Spacecraft position')
-axes.set_title('DOY vs Normalised Spacecraft position')
-
-axes.plot(doy_sc, orb_x/orb_x.max(), color='green', label = "X position")
-axes.plot(eph_doyfrac, orb_x_interp/orb_x_interp.max(), color='green',marker="+",label="Interp X")
-axes.plot(doy_sc, orb_y/orb_y.max(), color='black', label = "Y position")
-axes.plot(eph_doyfrac, orb_y_interp/orb_y_interp.max(), color='black',marker="x",label="Interp Y")
-axes.plot(doy_sc, orb_z/orb_z.max(), color='cyan', label = "Z position")
-axes.plot(eph_doyfrac, orb_z_interp/orb_z_interp.max(), color='cyan',marker="o",label="Interp Z")
-
-axes.plot([min(eph_doyfrac),min(eph_doyfrac)], [min(orb_y/orb_y.max())-0.5,1.5], color='red',linestyle='solid',          linewidth=3)
-axes.plot([max(eph_doyfrac),max(eph_doyfrac)], [min(orb_y/orb_y.max())-0.5,1.5], color='red',linestyle='solid',          linewidth=3)
-axes.legend()
+#pyfits.close()
 
