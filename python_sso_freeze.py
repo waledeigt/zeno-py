@@ -100,7 +100,7 @@ folder_path = input('Enter file path of event and orbit ephermis file: ')
 # The code below reads in the Chandra event file and extracts the relevant header info needed later
 evt_location = []
 
-for file in glob.glob(str(folder_path) + r"hrcf*_evt2.fits"): # path of .evt file to be corrected
+for file in glob.glob(str(folder_path) + r"\hrcf*_evt2.fits"): # path of .evt file to be corrected
     evt_location.append(file)
 
 evt_file = pyfits.open(evt_location[0])
@@ -137,7 +137,7 @@ doy_chandra = chand_time + evt_DOYFRAC #... to calculate the DOY of chandra
 # The code below reads in the orbit empheris file for the identified OBSid
 
 orb_location = []
-for orb_file in glob.glob(str(folder_path) + r"orbit*_eph1.fits"): # path of .evt file to be corrected
+for orb_file in glob.glob(str(folder_path) + r"\orbit*_eph1.fits"): # path of .evt file to be corrected
     orb_location.append(orb_file)
 
     
@@ -165,7 +165,7 @@ eph_path = input('Enter file path JPL Horizons (Chandra_horizons) file for Jupit
 
 # The code below reads in the JPL horizons file and extracts the relevant data and interpolate the data.
 
-eph_location =  (str(eph_path) + r"chandra_horizons2000_%s_e.txt" %obs_id)# path of
+eph_location =  (str(eph_path) + r"\chandra_horizons2000_%s_e.txt" %obs_id)# path of
 # chandra_horizons2000 file used from Chandra_Horizons_files folder
 
 eph_data = [] # empty array created in order to add the empheris data once loop is completed
