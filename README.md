@@ -1,5 +1,5 @@
 # zeno-py
-Repositiory address found in <b>*Weigt et al. (in prep.)*</b> with description in paper of the full algorithm used. <br>
+Repositiory address found in <b>*Weigt et al. (submitted)*</b> with description in paper of the full algorithm used. <br>
 
 Python code translated from existing IDL scripts, analysing and plotting Jupiter's X-ray aurora. As well as python scripts, the repository contains so far:
 - User guide to help use the python scripts
