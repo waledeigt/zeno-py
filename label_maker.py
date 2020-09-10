@@ -9,15 +9,21 @@ def draw_labels(ax, xy = (-0.1,1.1), xytext = (0.5,-0.5)):
     label_list = labels(ax.shape)
     print(label_list)
 
-    for Cr, Vr in enumerate(ax):
+     for Cr, Vr in enumerate(ax):
         try:
             for Cc, Vc in enumerate(Vr):
-                Vc.annotate(label_list[Cr,Cc], xy, xytext = xytext, xycoords = 'axes fraction',
-                    textcoords = 'offset pixels', va = 'top', ha = 'left', size = 'x-large')
+                try:
+                    Vc.annotate(label_list[Cr,Cc], xy, xytext = xytext, xycoords = 'axes fraction',
+                        textcoords = 'offset points', va = 'top', ha = 'left', size = 'x-large')
+                except AttributeError:
+                    pass
         except TypeError:
-            Vr.annotate(label_list[Cr], xy, xytext = xytext, xycoords = 'axes fraction',
-                textcoords = 'offset pixels', va = 'top', ha = 'left', size = 'x-large')
-
+            try:
+                Vr.annotate(label_list[Cr], xy, xytext = xytext, xycoords = 'axes fraction',
+                    textcoords = 'offset points', va = 'top', ha = 'left', size = 'x-large')
+            except AttributeError:
+                pass
+            
 def labels(shape):
     """Returns a list of consecutive text labels starting at 'a' as an array in that shape."""
     length = np.prod(shape)
