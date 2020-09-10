@@ -25,44 +25,14 @@ import label_maker as make_me_labels # import script to label mutliple subplots
 import numpy as np
 import pandas as pd
 import scipy
-import numpy as np
-import math
-import pandas as pd
-
-
-import scipy
 from scipy import interpolate
-from scipy.io import readsav
-
 from astropy.io import ascii
-from astropy.visualization import astropy_mpl_style
 from astropy.io import fits as pyfits
-from astropy.utils.data import get_pkg_data_filename
-from astropy.table import Table, Column
-from astropy import units as u
-from astropy.units import imperial
-from astropy.convolution import Gaussian1DKernel
-from astropy.convolution import convolve, Box1DKernel
-
 import matplotlib
 from matplotlib import pyplot as plt
-#from matplotlib.widgets import RectangleSelector
-from matplotlib import ticker, cm
 from matplotlib import colors
-
 import matplotlib.gridspec as gridspec
-
-from numpy.random import poisson 
-
-import time
-from distutils.version import LooseVersion
-import datetime
-from datetime import datetime, timedelta
-import calendar
-import aplpy as apl
-
 import glob
-import os
 
 
 """Setup the font used for plotting"""
@@ -141,17 +111,10 @@ alt = 400 # altitude where X-ray emission assumers to occur in Jupiter's ionosph
 
 
 """Brad's horizons code to extract the ephemeris file"""
-import astropy as astropy
-import astroquery
-from bs4 import BeautifulSoup
-import operator     #subtract arrays
-from astropy.io import fits                     #input .fits files
-from astropy import wcs 
-from matplotlib.ticker import MultipleLocator
+
 from astropy.time import Time                   #convert between different time coordinates
 from astropy.time import TimeDelta              #add/subtract time intervals 
-from scipy.interpolate import interp1d          #interpolate functions
-from astropy import wcs
+
 #-*- coding: utf-8 -*-
 from astroquery.jplhorizons import Horizons     #automatically download ephemeris 
 #Need to do this to fix astroquery bug, otherwise it won't find the ephemeris data
