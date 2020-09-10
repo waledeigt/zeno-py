@@ -3,7 +3,7 @@
 
 # ## <u> sso-freeze - Python </u>
 # 
-# As described in *Weigt et al. (in prep.)* The following code is a script that takes Gladstone's stop_hrci and translates it into python.
+# As described in *Weigt et al. 2020* The following code is a script that takes Gladstone's stop_hrci and translates it into python.
 # This code has been split up into the different section for each different functions carried out.
 # 
 # <i>End Goal </i>: To simply enter the OBSid -> gather the selected files -> apply ''sso_freeze'' -> output the corrected file
@@ -42,32 +42,13 @@
 #Purpose: Read in Chandra event file and empheris files. Correct event file by time-tagging photons to their position
 #on Jupiter. New fits file should produce a projection of the x-rays on Jupiter.
 #Category: Chandra fits file correction (Jupiter)
-#Authors: Dale Weigt (D.M.Weigt@soton.ac.uk), apadpted from Randy Gladstone's 'stop_hrci' IDL script
+#Authors: Dale Weigt (D.M.Weigt@soton.ac.uk), adapted from Randy Gladstone's 'stop_hrci' IDL script
 
 """All the relevant packages are imported for code below"""
-import go_chandra_analysis_tools as gca_tools # import the defined functions to analysis Chandra data and 
-#perfrom coordinate transformations
-
 import numpy as np
-import math
 import pandas as pd
-import scipy
-from astropy.io import ascii
-import matplotlib
-from matplotlib import pyplot as plt
-from numpy.random import poisson 
-import time
-from distutils.version import LooseVersion
-import datetime
-import calendar
-
 import glob
-import os
 from astropy.io import fits as pyfits
-from astropy.table import Table, Column
-from astropy import units as u
-from astropy.units import imperial
-from astropy.convolution import convolve, Box1DKernel
 from scipy import interpolate
 
 """Below are a list of defined functions used in the code below
@@ -78,14 +59,6 @@ def doy_frac(DOY, hour, minutes, seconds): # function takes a given DOY, hour, m
     frac = DOY + hour/24.0 + minutes/1440.0 + seconds/86400.0 #... and calualtes the correct DOY fraction.
     return frac
 
-
-# Setup the font used for plotting
-matplotlib.rcParams['font.sans-serif'] = "Arial"
-matplotlib.rcParams['font.family'] = "sans-serif"
-matplotlib.rcParams['font.size'] = 18
-matplotlib.rcParams['xtick.labelsize']=14
-matplotlib.rcParams['ytick.labelsize']=14
-matplotlib.rcParams['agg.path.chunksize'] = 1000000
 # AU to meter conversion - useful later on (probably a function built in already)
 AU_2_m = 1.49598E+11
 
