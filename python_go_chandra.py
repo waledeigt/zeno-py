@@ -63,8 +63,9 @@ print('')
 
 cor_evt_location = []
 # Script then searches through the folder looking the filename corresponding to the corrected file
-for file in glob.glob(str(folder_path) + r"\hrcf*_pytest_evt2.fits"):
-    cor_evt_location.append(file)
+for file in os.listdir(str(folder_path)):
+    if file.startswith("hrcf") and file.endswith("pytest_evt2.fits"):
+        cor_evt_location.append(os.path.join(str(folder_path), file))
 
 # File is then read in with relevant header information extracted:
 hdulist = pyfits.open(cor_evt_location[0], dtype=float)
