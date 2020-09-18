@@ -47,7 +47,7 @@
 """All the relevant packages are imported for code below"""
 import numpy as np
 import pandas as pd
-import glob
+import os
 from astropy.io import fits as pyfits
 from scipy import interpolate
 
@@ -73,8 +73,9 @@ folder_path = input('Enter file path of event and orbit ephermis file: ')
 # The code below reads in the Chandra event file and extracts the relevant header info needed later
 evt_location = []
 
-for file in glob.glob(str(folder_path) + r"\hrcf*_evt2.fits"): # path of .evt file to be corrected
-    evt_location.append(file)
+for file in os.listdir(str(folder_path)):
+    if file.startswith("hrcf") and file.endswith("evt2.fits"):
+        evt_location.append(os.path.join(str(folder_path), file))
 
 evt_file = pyfits.open(evt_location[0])
 # event file is read in and opened to extract header info
@@ -110,10 +111,12 @@ doy_chandra = chand_time + evt_DOYFRAC #... to calculate the DOY of chandra
 # The code below reads in the orbit empheris file for the identified OBSid
 
 orb_location = []
-for orb_file in glob.glob(str(folder_path) + r"\orbit*_eph1.fits"): # path of .evt file to be corrected
-    orb_location.append(orb_file)
 
-    
+for file in os.listdir(str(folder_path)):
+    if file.startswith("orbit") and file.endswith("eph1.fits"):
+        orb_location.append(os.path.join(str(folder_path), file))
+
+   
 # file used corresponding to the event file
 
 orb_file = pyfits.open(orb_location[0])
