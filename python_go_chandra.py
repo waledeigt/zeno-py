@@ -216,7 +216,7 @@ if time_int_decision == 'y':
     
     # the photon times are turned into an array and converted to datetime format
     np_times = np.array(ph_time)
-    timeincxo = Time(np_times, format='cxcsec', in_subfmt='date_hm')
+    timeincxo = Time(np_times, format='cxcsec')
     chandra_evt_time = timeincxo.datetime #- datetime.timedelta(minutes=40)
     
     # from the start end end time of the photons detected, the time interval of dt minutes is created...
@@ -238,7 +238,7 @@ else:
     
     # photon times are turned into an array and converted to datetime format
     np_times = np.array(ph_time)
-    timeincxo = Time(np_times, format='cxcsec', in_subfmt='date_hm')
+    timeincxo = Time(np_times, format='cxcsec')
     chandra_evt_time = timeincxo.iso
     # Chandra time then converted to a plotable format
     chandra_evt_time = Time(chandra_evt_time, format='iso', out_subfmt='date_hm')
