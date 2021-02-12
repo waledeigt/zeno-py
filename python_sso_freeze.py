@@ -3,7 +3,7 @@
 
 # ## <u> sso-freeze - Python </u>
 # 
-# As described in *Weigt et al. 2020* The following code is a script that takes Gladstone's stop_hrci and translates it into python.
+# As described in *Weigt et al. (in prep.)* The following code is a script that takes Gladstone's stop_hrci and translates it into python.
 # This code has been split up into the different section for each different functions carried out.
 # 
 # <i>End Goal </i>: To simply enter the OBSid -> gather the selected files -> apply ''sso_freeze'' -> output the corrected file
@@ -42,9 +42,10 @@
 #Purpose: Read in Chandra event file and empheris files. Correct event file by time-tagging photons to their position
 #on Jupiter. New fits file should produce a projection of the x-rays on Jupiter.
 #Category: Chandra fits file correction (Jupiter)
-#Authors: Dale Weigt (D.M.Weigt@soton.ac.uk), adapted from Randy Gladstone's 'stop_hrci' IDL script
+#Authors: Dale Weigt (D.M.Weigt@soton.ac.uk), apadpted from Randy Gladstone's 'stop_hrci' IDL script
 
 """All the relevant packages are imported for code below"""
+
 import numpy as np
 import pandas as pd
 import os
@@ -64,7 +65,7 @@ AU_2_m = 1.49598E+11
 
 
 # In[3]:
-
+ACIS = input('Are you correcting a fits file from the ACIS instrument? [y/n]: ') 
 
 """SECTION 1)"""
 
@@ -73,9 +74,16 @@ folder_path = input('Enter file path of event and orbit ephermis file: ')
 # The code below reads in the Chandra event file and extracts the relevant header info needed later
 evt_location = []
 
-for file in os.listdir(str(folder_path)):
-    if file.startswith("hrcf") and file.endswith("evt2.fits"):
-        evt_location.append(os.path.join(str(folder_path), file))
+if ACIS == 'y':
+    for file in os.listdir(str(folder_path)):
+        if file.startswith("acisf") and file.endswith("evt2.fits"):
+            evt_location.append(os.path.join(str(folder_path), file))
+
+else:    
+    for file in os.listdir(str(folder_path)):
+        if file.startswith("hrcf") and file.endswith("evt2.fits"):
+            evt_location.append(os.path.join(str(folder_path), file))
+
 
 evt_file = pyfits.open(evt_location[0])
 # event file is read in and opened to extract header info
@@ -113,10 +121,12 @@ doy_chandra = chand_time + evt_DOYFRAC #... to calculate the DOY of chandra
 orb_location = []
 
 for file in os.listdir(str(folder_path)):
+    #if file.startswith("orbit") and file.endswith("eph0.fits"):    
     if file.startswith("orbit") and file.endswith("eph1.fits"):
         orb_location.append(os.path.join(str(folder_path), file))
 
-   
+
+    
 # file used corresponding to the event file
 
 orb_file = pyfits.open(orb_location[0])
@@ -155,7 +165,8 @@ with open(eph_location) as input_data:
             break
         line = line.strip()
         col = line.split() # the data is then edited into columns with the new line (/n) marker removed.
-        eph_df_data = {"date":col[0], "time":col[1],              "RA":col[2], "DEC":col[3], "Jupiter-Chandra Distance":col[11]} 
+        #eph_df_data = {"date":col[0], "time":col[1],              "RA":col[2], "DEC":col[3], "Jupiter-Chandra Distance":col[11]} 
+        eph_df_data = {"date":col[0], "time":col[1],              "RA":col[2], "DEC":col[3], "Jupiter-Chandra Distance":col[-2]} 
         # dictionary of the data is created with the relevent column names - to give the data some contect when viewed - and...
         eph_data.append(eph_df_data) #...is added to the previosuly defined empty array to produce the data needed to create
         # a data frame with empheris data.
@@ -175,9 +186,9 @@ eph_df['seconds'] = eph_times.second # extracts the second from the emphermis da
 eph_df[['hour', 'minutes', 'seconds']] = eph_df[['hour', 'minutes', 'seconds']].astype(float) # changes the selected columns to 
 # floats
 eph_df['DOY'] = eph_doy # creates a new column - DOY (from the doy values calculated)
-#eph_df['DOYFRAC'] = doy_frac(eph_doy, eph_df['hour'], eph_df['minutes'], eph_df['seconds']) # DOYFRAC is calculated for the dates
+eph_df['DOYFRAC'] = doy_frac(eph_doy, eph_df['hour'], eph_df['minutes'], eph_df['seconds']) # DOYFRAC is calculated for the dates
 # and added as a new column in data frame
-#eph_doyfrac = np.array(eph_df['DOYFRAC'])
+eph_doyfrac = np.array(eph_df['DOYFRAC'])
 eph_month = np.array(eph_dates.month) # changes the month data into an array
 eph_day = np.array(eph_dates.day)
 
@@ -214,9 +225,9 @@ else:
 
 """SECTION 4)"""
 
-interpfunc_x = interpolate.interp1d(doy_sc, orb_x) 
-interpfunc_y = interpolate.interp1d(doy_sc, orb_y)
-interpfunc_z = interpolate.interp1d(doy_sc, orb_z)
+interpfunc_x = interpolate.interp1d(doy_sc, orb_x,fill_value="extrapolate")
+interpfunc_y = interpolate.interp1d(doy_sc, orb_y,fill_value="extrapolate")
+interpfunc_z = interpolate.interp1d(doy_sc, orb_z,fill_value="extrapolate")
 
 # Above code creates a linear intepolation function that interpolates the spacecraft DOY and the positional coordinates from
 # the orbital empheris file to...
@@ -247,17 +258,28 @@ ra_jup_interp = interpfunc_ra_jup(doy_chandra) # interpolated RA of Jupiter and 
 dec_jup_interp = interpfunc_dec_jup(doy_chandra) # interpolated DEC of Jupiter and the DOY from the emphermis file to the Chandra
 #DOY
 
-xx = (evt_x - (RA_0 - ra_jup_interp) * 3600.0 / 0.13175 * cc).astype(float) # corrected x position of photons
-yy = (evt_y + (DEC_0 - dec_jup_interp) * 3600.0 / 0.13175).astype(float) # corrected y position of photons
+if ACIS == 'y':
+    scale = 0.4920 # units of pixels/arcsec
+    xx = (evt_x - (RA_0 - ra_jup_interp) * 3600.0 / scale * cc).astype(float) # corrected x position of photons
+    yy = (evt_y + (DEC_0 - dec_jup_interp) * 3600.0 / scale).astype(float) # corrected y position of photons
+
+else:
+    scale = 0.13175 # untis of pixels/arcsec 
+    xx = (evt_x - (RA_0 - ra_jup_interp) * 3600.0 / scale * cc).astype(float) # corrected x position of photons
+    yy = (evt_y + (DEC_0 - dec_jup_interp) * 3600.0 / scale).astype(float) # corrected y position of photons
+    
 
 
 # In[8]:
 
 
 """SECTION 5)"""
-
-new_evt_location = (str(folder_path) + r"\hrcf%s_pytest_evt2.fits"%obs_id) # path of the location
-# for the corrected fits file (with the photons corrected for the position).
+if ACIS == 'y':
+    new_evt_location = (str(folder_path) + r"\acisf%s_pytest_evt2.fits"%obs_id) # path of the location
+    # for the corrected fits file (with the photons corrected for the position).
+else:
+    new_evt_location = (str(folder_path) + r"\hrcf%s_pytest_evt2.fits"%obs_id) # path of the location
+    # for the corrected fits file (with the photons corrected for the position)
 
 new_evt_data, new_evt_header = pyfits.getdata(evt_location[0], header=True)
 # original fits file is read in again to obtain the data - data and header values are assigned to a new variable to avoid overwriting
