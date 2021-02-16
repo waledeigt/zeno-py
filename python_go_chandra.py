@@ -32,9 +32,8 @@ import matplotlib
 from matplotlib import pyplot as plt
 from matplotlib import colors
 import matplotlib.gridspec as gridspec
-import glob
-
-
+import os
+from datetime import *
 """Setup the font used for plotting"""
 
 matplotlib.rcParams['font.sans-serif'] = "Arial"
@@ -63,9 +62,16 @@ print('')
 
 cor_evt_location = []
 # Script then searches through the folder looking the filename corresponding to the corrected file
+
+# for file in os.listdir(str(folder_path)):
+#     if file.startswith("hrcf") and file.endswith("pytest_evt2.fits"):
+#         cor_evt_location.append(os.path.join(str(folder_path), file))
+
 for file in os.listdir(str(folder_path)):
-    if file.startswith("hrcf") and file.endswith("pytest_evt2.fits"):
+    if file.endswith("pytest_evt2.fits"):
         cor_evt_location.append(os.path.join(str(folder_path), file))
+        
+detector = os.path.basename(cor_evt_location[0])[0:4]
 
 # File is then read in with relevant header information extracted:
 hdulist = pyfits.open(cor_evt_location[0], dtype=float)
@@ -94,16 +100,22 @@ evt_DOYFRAC = gca_tools.doy_frac(float(evt_doy), float(evt_hour), float(evt_mins
 ra_centre, ra_centre_rad = img_head['RA_NOM'], np.deg2rad(img_head['RA_NOM']) # the RA of Jupiter at the centre of the chip is read in as...
 dec_centre, dec_centre_rad = img_head['DEC_NOM'], np.deg2rad(img_head['DEC_NOM']) #... well as Jupitr's DEC
 j_rotrate = np.rad2deg(1.758533641E-4) # Jupiter's rotation period
-
+#sat_rotrate = np.rad2deg(1.637884058E-4) # Saturn's rotation period
 hdulist.close()
 
 # Assumptions used for mapping:
-scale = 0.13175 # scale used when observing Jupiter using Chandra - in units of arcsec/pixel
-fwhm = 0.8 # FWHM of the HRC-I point spread function (PSF) - in units of arcsec
-psfsize = 25 # size of PSF used - in units of arcsec
-alt = 400 # altitude where X-ray emission assumers to occur in Jupiter's ionosphere - in units of km
+if detector == 'acis':
+    scale = 0.4920
+    fwhm = 0.8 # FWHM of the HRC-I point spread function (PSF) - in units of arcsec
+    psfsize = 25 # size of PSF used - in units of arcsec
+    alt = 400 # altitude where X-ray emission assumers to occur in Jupiter's ionosphere - in units of km
 
-
+else:
+    scale = 0.13175 # scale used when observing Jupiter using Chandra - in units of arcsec/pixel
+    fwhm = 0.8 # FWHM of the HRC-I point spread function (PSF) - in units of arcsec
+    psfsize = 25 # size of PSF used - in units of arcsec
+    alt = 400 # altitude where X-ray emission assumers to occur in Jupiter's ionosphere - in units of km
+    
 # ### Reading in Jupiter Horizon's file
 # 
 # Alogrithm uses the start and end date from the observation to generate an epheremis file (from the JPL Horizons server) to use for analysis. The ephermeris file used takes CXO as the observer
@@ -130,6 +142,7 @@ dt = TimeDelta(0.125, format='jd')
 eph_tstop = Time(tstop_eph + dt, out_subfmt='date_hm')
 # Below sets the parameters of what observer the ephemeris file is generated form. For example, '500' = centre of the Earth, '500@-151' = CXO
 obj = Horizons(id=599,location='500@-151',epochs={'start':eph_tstart.iso, 'stop':eph_tstop.iso, 'step':'1m'}, id_type='majorbody')
+
 eph_jup = obj.ephemerides()
 
 # Extracts relevent information needed from ephermeris file
@@ -158,14 +171,21 @@ jup_time = (eph_DOYFRAC_jup - evt_DOYFRAC)*86400.0 + tstart # local tiem of Jupi
 
 
 # converting the x and y coordinates from the event file into arcseconds
+# Aimpoint of observations -> HRC: (16384.5, 16384.5), ACIS: (4096.5, 4096.5)
+if detector == 'acis':
+    bigxarr_region = (bigxarr - 4096.5)*scale
+    bigyarr_region = (bigyarr - 4096.5)*scale
+    xlimits, ylimits = [-30,30], [-30,30]
 
-bigxarr_region = (bigxarr - 16384.5)*0.13175
-bigyarr_region = (bigyarr - 16384.5)*0.13175
+else:
+    bigxarr_region = (bigxarr - 16384.5)*scale
+    bigyarr_region = (bigyarr - 16384.5)*scale
+    xlimits, ylimits = [-50,50], [-50,50]
 
 # define the x, y, and pha channel limits (0-90 is default here)
-xlimits, ylimits = [-50,50], [-50,50]
+
 cha_min = 0
-cha_max = 90
+cha_max = 90 # default 90
 
 # the photon data is stored in a pandas dataframe 
 evt_df = pd.DataFrame({'time': bigtime, 'x': bigxarr, 'y': bigyarr, 'pha': bigchannel})
@@ -216,7 +236,7 @@ if time_int_decision == 'y':
     
     # the photon times are turned into an array and converted to datetime format
     np_times = np.array(ph_time)
-    timeincxo = Time(np_times, format='cxcsec')
+    timeincxo = Time(np_times, format='cxcsec')#, in_subfmt='date_hm')
     chandra_evt_time = timeincxo.datetime #- datetime.timedelta(minutes=40)
     
     # from the start end end time of the photons detected, the time interval of dt minutes is created...
@@ -238,7 +258,7 @@ else:
     
     # photon times are turned into an array and converted to datetime format
     np_times = np.array(ph_time)
-    timeincxo = Time(np_times, format='cxcsec')
+    timeincxo = Time(np_times, format='cxcsec')#, in_subfmt='date_hm')
     chandra_evt_time = timeincxo.iso
     # Chandra time then converted to a plotable format
     chandra_evt_time = Time(chandra_evt_time, format='iso', out_subfmt='date_hm')
@@ -296,14 +316,13 @@ if time_int_decision == 'y':
         interpfunc_cml = interpolate.interp1d(jup_time, jup_cml_0)
         jup_cml = interpfunc_cml(tevents)
         jup_cml = np.deg2rad(jup_cml % 360)
-        # find the distance between Jupiter and Chandra throughout the observation, convert to km
         interpfunc_dist = interpolate.interp1d(jup_time, eph_jup['delta'].astype(float)*AU_2_km)
         jup_dist = interpfunc_dist(tevents)
         dist = sum(jup_dist)/len(jup_dist)
         kmtoarc = np.rad2deg(1.0/dist)*3.6E3 # convert from km to arc
         kmtopixels = kmtoarc/scale # convert from km to pixels using defined scale
-        rad_eq_0 = 71492.0 # radius of equator in km
-        rad_pole_0 = 66854.0 # radius of poles in km
+        rad_eq_0 = 71492.0 # jupiter radius of equator in km
+        rad_pole_0 = 66854.0 # jupiter radius of poles in km
         ecc = np.sqrt(1.0-(rad_pole_0/rad_eq_0)**2) # oblateness of Jupiter 
         rad_eq = rad_eq_0 * kmtopixels 
         rad_pole = rad_pole_0 * kmtopixels # convert both radii form km -> pixels
@@ -335,7 +354,8 @@ if time_int_decision == 'y':
         
         # perform coordinate transfromation from plentocentric -> planteographic (taking into account the oblateness of Jupiter
         # when defining the surface features)
-        coord_transfo = gca_tools.ltln2xy(alt=alt0, re0=rad_eq_0, rp0=rad_pole_0, r=rad_eq, e=ecc, h=h, phi1=phi1, phig=phig, lambda0=0.0, p=p, d=dist, gamma=gamma,                omega=omega, latc=np.deg2rad(lat), lon=np.deg2rad(lng))
+        coord_transfo = gca_tools.ltln2xy(alt=alt0, re0=rad_eq_0, rp0=rad_pole_0, r=rad_eq, e=ecc, h=h, phi1=phi1, phig=phig, lambda0=0.0, p=p, d=dist, gamma=gamma,
+                                          omega=omega, latc=np.deg2rad(lat), lon=np.deg2rad(lng))
         
         # Assign the corrected transformed position of the X-ray emission
         xt = coord_transfo[0]
@@ -415,7 +435,8 @@ if time_int_decision == 'y':
                     latj_max.append(latj[psf_max_cond])
                     lonj_max.append(lonj[psf_max_cond])
                     #... and save it as a text file
-                    np.savetxt(str(folder_path) + r"\%s_photonlist_timeint%s.txt" % (obs_id,m+1),                   np.c_[ph_tevts, ph_xevts, ph_yevts, ph_chavts, latj_max, lonj_max, ph_cmlevts, emiss_evts, psfmax],                    delimiter=',', header="t(s),x(arcsec),y(arcsec),PHA,lat (deg), SIII_lon (deg),CML (deg),emiss (deg),Max PSF") 
+                    np.savetxt(str(folder_path) + r"\%s_photonlist_timeint%s.txt" % (obs_id,m+1),
+                               np.c_[ph_tevts, ph_xevts, ph_yevts, ph_chavts, latj_max, lonj_max, ph_cmlevts, emiss_evts, psfmax],                    delimiter=',', header="t(s),x(arcsec),y(arcsec),PHA,lat (deg), SIII_lon (deg),CML (deg),emiss (deg),Max PSF") 
                     
         # record the fluxes and position of the max PSFS
         sup_props_list.append(props)
@@ -443,7 +464,7 @@ if time_int_decision == 'y':
 
 
         for j in range(0, len(time_vals)):
-            timeprops[((lngon + time_cml[j].astype(int))%360).astype(int),laton.astype(int)] =             timeprops[((lngon + time_cml[j].astype(int))%360).astype(int),laton.astype(int)] + step
+            timeprops[((lngon + time_cml[j].astype(int))%360).astype(int),laton.astype(int)] = timeprops[((lngon + time_cml[j].astype(int))%360).astype(int),laton.astype(int)] + step
 
         sup_time_props_list.append(timeprops)
         
@@ -522,7 +543,7 @@ else:
 
     # Define the limb of Jupiter, to ensure only auroral photons are selected for analysis
     cosmu = gca_tools.findcosmu(rad_eq, rad_pole, phi1, np.deg2rad(lat), np.deg2rad(lng))
-    limb = np.where(abs(cosmu) < 0.05)
+    limb = np.where(abs(cosmu) < 0.05)[0]
 
     # This next step creates the parameters used to plot what is measured on Jupiter. In the code, I define this as "props" (properties)
     # which has untis of counts/m^2. "timeprops" has units of seconds
@@ -572,6 +593,8 @@ else:
                 continue
             else:  
 
+
+
                 props[lonj,latj] = props[lonj,latj] + psfdd # assign the 2D PSF to the each point in the grid
                 emiss = np.array(np.rad2deg(np.cos(cosc[condition[psf_max_cond]]))) # find the emission angle from each max PSF
                 # record the corresponding photon data at each peak in the grid...
@@ -589,7 +612,7 @@ else:
                 ph_yevts_arr = np.array(ph_yevts, dtype=float)
                 ph_chavts_arr = np.array(ph_chavts, dtype=float)
                 #... and save as text file
-                np.savetxt(str(folder_path)+ "\%s_photonlist_full_obs.txt" % obs_id                                 , np.c_[ph_tevts_arr, ph_xevts_arr, ph_yevts_arr, ph_chavts_arr, latj_max, lonj_max,                                        ph_cmlevts, emiss_evts, psfmax],                                 delimiter=',', header="t(s),x(arcsec),y(arcsec),PHA,lat (deg), SIII_lon (deg),CML (deg),emiss (deg),Max PSF",                              fmt='%s')
+                np.savetxt(str(folder_path)+ "\%s_photonlist_full_obs_v2.txt" % obs_id                                 , np.c_[ph_tevts_arr, ph_xevts_arr, ph_yevts_arr, ph_chavts_arr, latj_max, lonj_max,                                        ph_cmlevts, emiss_evts, psfmax],                                 delimiter=',', header="t(s),x(arcsec),y(arcsec),PHA,lat (deg), SIII_lon (deg),CML (deg),emiss (deg),Max PSF",                              fmt='%s')
 
     # effectively, do the same idea except for exposure time
     obs_start_times = tevents.min()
@@ -612,7 +635,8 @@ else:
 
 
     for j in range(0, len(time_vals)):
-        timeprops[((lngon + time_cml[j].astype(int))%360).astype(int),laton.astype(int)] =         timeprops[((lngon + time_cml[j].astype(int))%360).astype(int),laton.astype(int)] + step
+        timeprops[((lngon + time_cml[j].astype(int))%360).astype(int),laton.astype(int)] = timeprops[((lngon + time_cml[j].astype(int))%360).astype(int),laton.astype(int)] + step
+
         
     # record the fluxes and position of the max PSFs
     sup_props_list = props
@@ -634,11 +658,12 @@ else:
 
 # Creating the custom color map for polar plots
 c = colors.ColorConverter().to_rgb
-custom_map = make_me_colors.make_cmap([c('white'), c('cyan'), 0.10, c('cyan'), c('blue'), 0.50, c('blue'),                                      c('lime'), 0.90, c('lime')])
-# The color strings can be changed to what the user desires! Default: color map used in the Weigt et al. (in prep.)
+custom_map = make_me_colors.make_cmap([c('white'), c('cyan'), 0.10, c('cyan'), c('blue'), 0.50, c('blue'),
+                                       c('lime'), 0.90, c('lime')])
+# The color strings can be changed to what the user desires! Default: color map used in the Weigt et al. 2020
 
 # convert to X-ray brightness in Rayleighs - assuimg Aef = 40cm^2 (appropriate for 300eV X-rays)
-conf = 4.0 * np.pi * 206264.806**2 / 1E6 / 1000 # equation explained in Weigt et al. (in prep.)
+conf = 4.0 * np.pi * 206264.806**2 / 1E6 / 1000 # convert flux -> Rayleighs (brightness)
 
 ratio = rad_pole_0/rad_eq_0 # ratio of polar radius to equatorial radius
 
