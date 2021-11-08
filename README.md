@@ -1,4 +1,7 @@
 # zeno-py
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5654904.svg)](https://doi.org/10.5281/zenodo.5654904) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Repositiory address found in <b>*Weigt et al. 2020*</b> with description in paper of the full algorithm used. <br>
 
 Python code translated from existing IDL scripts, analysing and plotting Jupiter's X-ray aurora using Chandra HRC-I data. As well as the python scripts, the repository contains so far:
