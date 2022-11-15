@@ -146,81 +146,33 @@ doy_sc = (orb_time - tstart) /86400.0 + evt_DOYFRAC # doy of spacecraft
 
 """SECTION 3)"""
 
-eph_path = input('Enter file path JPL Horizons (Chandra_horizons) file for Jupiter ephemeris: ')  
 
-# The code below reads in the JPL horizons file and extracts the relevant data and interpolate the data.
+"""Brad Sinos's horizons code to extract the ephemeris file"""
 
-eph_location =  (str(eph_path) + r"\chandra_horizons2000_%s_e.txt" %obs_id)# path of
-# chandra_horizons2000 file used from Chandra_Horizons_files folder
+from astropy.time import Time                   #convert between different time coordinates
+from astropy.time import TimeDelta              #add/subtract time intervals 
+from astroquery.jplhorizons import Horizons     #automatically download ephemeris 
 
-eph_data = [] # empty array created in order to add the empheris data once loop is completed
-with open(eph_location) as input_data:
-    # chandra file is read in...
-    for line in input_data:
-        if line.strip() == '$$SOE': #...and the Start of Empheris line is found - data beyond this line is read until...
-            break
-    for line in input_data:
-        if line.strip() == '$$EOE': #...the End of Empheris line is found.
-            break
-        line = line.strip()
-        col = line.split() # the data is then edited into columns with the new line (/n) marker removed.
-        #eph_df_data = {"date":col[0], "time":col[1],              "RA":col[2], "DEC":col[3], "Jupiter-Chandra Distance":col[11]} 
-        eph_df_data = {"date":col[0], "time":col[1],              "RA":col[2], "DEC":col[3], "Jupiter-Chandra Distance":col[-2]} 
-        # dictionary of the data is created with the relevent column names - to give the data some contect when viewed - and...
-        eph_data.append(eph_df_data) #...is added to the previosuly defined empty array to produce the data needed to create
-        # a data frame with empheris data.
+# The start and end times are taken from the horizons file.
+tstart_eph=Time(tstart, format='cxcsec') 
 
-eph_df = pd.DataFrame(eph_data) # data is inputted into a data frame...
-eph_dates = pd.to_datetime(eph_df['date']) #...and the time values are created into a time stamp ->  to ensure maniuplation
-#with time can be carried out via pandas. 
-eph_dates = pd.DatetimeIndex(eph_dates) # Dates of the form YYYY-MM-DD hh:mm:ss are generated from the time stamp.
-eph_times = pd.to_datetime(eph_df['time'])
-eph_times = pd.DatetimeIndex(eph_times) # The same process is carried out for the times of the emphermis file
-eph_doy = np.array(eph_dates.strftime('%j')) # doy from the dates are determined...
-eph_doy = np.array([float(i) for i in eph_doy]) #...and generated as floats to allowing manipulation of the numbrs
+dt = TimeDelta(0.125, format='jd') 
+tstop_eph=Time(tend, format='cxcsec')
 
-eph_df['hour'] = eph_times.hour # extracts the hour from the emphermis data frame of each time
-eph_df['minutes'] = eph_times.minute # extracts the minute from the emphermis data frame of each time
-eph_df['seconds'] = eph_times.second # extracts the second from the emphermis data frame of each time
-eph_df[['hour', 'minutes', 'seconds']] = eph_df[['hour', 'minutes', 'seconds']].astype(float) # changes the selected columns to 
-# floats
-eph_df['DOY'] = eph_doy # creates a new column - DOY (from the doy values calculated)
-eph_df['DOYFRAC'] = doy_frac(eph_doy, eph_df['hour'], eph_df['minutes'], eph_df['seconds']) # DOYFRAC is calculated for the dates
-# and added as a new column in data frame
-eph_doyfrac = np.array(eph_df['DOYFRAC'])
-eph_month = np.array(eph_dates.month) # changes the month data into an array
-eph_day = np.array(eph_dates.day)
+# Below sets the parameters of what observer (geocentric) the ephemeris file is generated form. For example, '500' = centre of the Earth, '500@-151' = CXO
+obj = Horizons(id=599,location='500',epochs={'start':(tstart_eph).iso, 'stop':(tstop_eph+dt).iso, 'step':'5m'}) # step size of ephemeris is set to 5-mins
+eph_jup = obj.ephemerides()
 
-bday = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334] # the last DOY associated with each month...
-bday = np.array([float(i) for i in bday]) #...and converted into floats
+# Extracts relevent date/time information needed from ephermeris file
 
-"""***************************************************************************************************************************
-The code below determines whether the year selected is a leap year or not.
-IF the date is a leap year AND the month of observation is beyond Feb, the doy at the end of the month (bday) after Feb has 1
-day added on."""
+eph_dates = pd.to_datetime(eph_jup['datetime_str']) 
+eph_dates = pd.DatetimeIndex(eph_dates)
+eph_doy = np.array(eph_dates.strftime('%j')).astype(int)
+eph_hours = eph_dates.hour
+eph_minutes = eph_dates.minute
+eph_seconds = eph_dates.second
 
-eph_leap = eph_dates.is_leap_year # To check if the date is a leap year
-bdayx = bday[eph_month - 1] # end of doy associated with the (month number -1) from the horizons file
-leap_condition = np.where((eph_leap == True) & (eph_month > 2))[0] # look for non-zero values where the date is a leap year and the 
-# month of observation is beyond Feb...
-#leap_condition = np.where((eph_leap_test == True) & (eph_month_test > 2))
-leap_count = np.count_nonzero(leap_condition)#...and then count the number of times this occurs
-
-if leap_count > 0:                                        # if there are more than zero instances where the condition is true...
-    print('Is a leap year - applying correction to DOY.') #... the date is a leap year and...
-    bdayx[leap_condition] = bdayx[leap_condition] + 1     #...add 1 day to the end of month when this condition holds and...
-    eph_doyfrac = doy_frac(bdayx, eph_df['hour'], eph_df['minutes'], eph_df['seconds']) + eph_day
-    #...the DOYFRAC is calculated for the dates (leap year) and...
-    eph_df['DOYFRAC'] = eph_doyfrac #...added as a new column in the data frame
-else:                                                     
-    print('Not a leap year')                              # if the date is not a leap year, carry out the same calculation
-                                                          # without correcting for a leap year
-    eph_doyfrac = doy_frac(bdayx, eph_df['hour'], eph_df['minutes'], eph_df['seconds']) + eph_day
-    eph_df['DOYFRAC'] = eph_doyfrac 
-
-
-# In[7]:
-
+eph_doyfrac = doy_frac(eph_doy, eph_hours, eph_minutes, eph_seconds) # DOY fraction from ephermeris data
 
 """SECTION 4)"""
 
@@ -237,9 +189,9 @@ orb_z_interp = interpfunc_z(eph_doyfrac)
 
 #... the DOY from the empheris file (2 day window in this case) to produce the new orbit positional coordinates within this time
 #range
-r_jup = np.array(eph_df['Jupiter-Chandra Distance'].astype(float))*AU_2_m # Jupiter chandra distance 
-dec_jup = np.deg2rad(np.array(eph_df['DEC'].astype(float))) # DEC of Jupiter during observation
-ra_jup = np.deg2rad(np.array(eph_df['RA'].astype(float)))# RA of Jupiter duting observation
+r_jup = np.array(eph_jup['delta'].astype(float))*AU_2_m # Jupiter chandra distance 
+dec_jup = np.deg2rad(np.array(eph_jup['DEC'].astype(float))) # DEC of Jupiter during observation
+ra_jup = np.deg2rad(np.array(eph_jup['RA'].astype(float)))# RA of Jupiter duting observation
 xp = (r_jup * np.cos(dec_jup) * np.cos(ra_jup)) - orb_x_interp
 yp = (r_jup * np.cos(dec_jup) * np.sin(ra_jup)) - orb_y_interp
 zp = (r_jup * np.sin(dec_jup)) - orb_z_interp
@@ -268,16 +220,12 @@ else:
     yy = (evt_y + (DEC_0 - dec_jup_interp) * 3600.0 / scale).astype(float) # corrected y position of photons
     
 
-
-# In[8]:
-
-
 """SECTION 5)"""
 if ACIS == 'y':
-    new_evt_location = (str(folder_path) + r"\acisf%s_pytest_evt2.fits"%obs_id) # path of the location
+    new_evt_location = (str(folder_path) + f"/acisf{obs_id}_pytest_evt2.fits") # path of the location
     # for the corrected fits file (with the photons corrected for the position).
 else:
-    new_evt_location = (str(folder_path) + r"\hrcf%s_pytest_evt2.fits"%obs_id) # path of the location
+    new_evt_location = (str(folder_path) + f"/hrcf{obs_id}_pytest_evt2.fits") # path of the location
     # for the corrected fits file (with the photons corrected for the position)
 
 new_evt_data, new_evt_header = pyfits.getdata(evt_location[0], header=True)
@@ -285,7 +233,6 @@ new_evt_data, new_evt_header = pyfits.getdata(evt_location[0], header=True)
 # the original file
 new_evt_data['X'] = xx # New x coord of photons added to fits file under previous data header 'X'
 new_evt_data['Y'] = yy # New y coord of photons added to fits file under previous data header 'Y'
-pyfits.writeto(new_evt_location, new_evt_data, new_evt_header, clobber=True)
+pyfits.writeto(new_evt_location, new_evt_data, new_evt_header, overwrite=True)
 # new fits file is written with the correction to the position of the photons witht he original file remaining the same
 #pyfits.close()
-
