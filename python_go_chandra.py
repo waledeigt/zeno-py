@@ -654,7 +654,14 @@ else:
 # Polar plots are created for either the full observation or feach defined time interval. The user is prompted to set the max limit for the color bar used in the plots. The pltos are saved to the same folder as the corrected event file.
 
 # In[29]:
+# Setting up tick labels for latitude on polar plots
+r_np_ticks = np.arange(90,0,-10)
+r_np_ticks = np.ma.masked_where(r_np_ticks < 40, r_np_ticks)
+r_np_ticks = np.ma.masked_where(r_np_ticks == 90, r_np_ticks)
 
+r_sp_ticks = np.arange(-90,0,10)
+r_sp_ticks = np.ma.masked_where(r_sp_ticks > -40, r_sp_ticks)
+r_sp_ticks = np.ma.masked_where(r_sp_ticks == -90, r_sp_ticks)
 
 # Creating the custom color map for polar plots
 c = colors.ColorConverter().to_rgb
@@ -670,8 +677,18 @@ ratio = rad_pole_0/rad_eq_0 # ratio of polar radius to equatorial radius
 # Defining azimuth angle and distance in polar plot
 azimuth = np.deg2rad(np.arange(0,361)) # azimuth = S3 longitude in this system
 # R deifned for both North and South poles using latitude. North: (0,90), South: (0, -90) 
-R_np = 90.0*np.sqrt(1/(1/(ratio*np.tan(((np.deg2rad(90 - np.arange(0,91))))))**2 + 1))
-R_sp = 90.0*np.sqrt(1/(1/(ratio*np.tan(((np.deg2rad(90 -np.arange(-91,0))))))**2 + 1))
+R_np = np.sqrt(1/(1/(ratio*np.tan(((np.deg2rad(np.arange(0,91))-np.pi/2))))**2 + 1))
+R_sp = np.sqrt(1/(1/(ratio*np.tan(((np.deg2rad(np.arange(-91,0))-np.pi/2))))**2 + 1))
+# Conversion to planetographic coordinates
+R_np = np.arctan(np.tan(R_np)/ratio**2)
+R_sp = np.arctan(np.tan(R_sp)/ratio**2)
+
+# Creating planetographic grid for polar plots
+R_np_grid = np.sqrt(1/(1/(ratio*np.tan(((np.deg2rad(np.arange(0,91,10))-np.pi/2))))**2 + 1))
+R_np_grid = np.arctan(np.tan(R_np_grid)/ratio**2)
+R_sp_grid = np.sqrt(1/(1/(ratio*np.tan(((np.deg2rad(np.arange(-91,0,10))-np.pi/2))))**2 + 1))
+R_sp_grid = np.arctan(np.tan(R_sp_grid)/ratio**2)
+
 
 np_polar_props_list = []
 sp_polar_props_list = []
@@ -708,8 +725,10 @@ if time_int_decision == 'y':
         south_ph_sc_list.append(south_photons_pos)
         # perfoming coordinate transformation on the photon position to be plotted on polar plot 
         az_scat = np.deg2rad(sup_lon_list[i])
-        R_scat_np = 90.0*np.sqrt(1/(1/(ratio*np.tan(((np.deg2rad(sup_lat_list[i][north_photons_pos])-np.pi))))**2 + 1))
-        R_scat_sp = 90.0*np.sqrt(1/(1/(ratio*np.tan(((np.deg2rad(sup_lat_list[i][south_photons_pos])-np.pi))))**2 + 1))
+        
+
+        R_scat_np = np.sqrt(1/(1/(ratio*np.tan(((np.deg2rad(sup_lat_list[i][north_photons_pos])-np.pi))))**2 + 1))
+        R_scat_sp = np.sqrt(1/(1/(ratio*np.tan(((np.deg2rad(sup_lat_list[i][south_photons_pos])-np.pi))))**2 + 1))
         grid_R_np.append(R_scat_np)
         grid_R_sp.append(R_scat_sp)
         
@@ -717,31 +736,45 @@ if time_int_decision == 'y':
         fig = plt.figure(figsize=(10,10))
         # left plot is North pole
         ax1 = plt.subplot(121, projection="polar")
-        
+
         # creating the 2D polar plot with transformed values and custom color map...
-        mesh_np = plt.pcolormesh(azimuth, R_np, np_bright_props, norm=colors.PowerNorm(gamma=0.7), vmin=0,                                 vmax = max_brightness,cmap=custom_map)
+        mesh_np = ax1.pcolormesh(azimuth, R_np, np_bright_props, norm=colors.PowerNorm(gamma=0.7), vmin=0,                                 vmax = max_brightness,cmap=custom_map)
+        
+
+          
         #...with a scatter plot of the photon positions
-        ax1.scatter(az_scat[north_photons_pos], R_scat_np, s=5, color='black', alpha=0.2)
+        #ax1.scatter(az_scat[north_photons_pos], R_scat_np, s=5, color='black', alpha=0.2)
         # editing polar plot to show 180 degrees at the top for North, setting the appropriate limits and other plotting functions
         ax1.set_theta_direction(-1)
         ax1.set_theta_offset(-np.pi/2)
         ax1.set_ylim(0,max(R_np))
-        ax1.set_yticklabels([])
+       # ax1.set_yticklabels([])
         ax1.set_title('North Pole', size = 16, y=1.08)
-        plt.grid(alpha=0.5)
-
+        #plt.grid(alpha=0.5)
+        ax1.set_yticklabels([])
+        for kk in range(len(R_np_grid)):
+            ax1.plot(2*np.pi - np.linspace(0, 2*np.pi, 100), np.full(100,R_np_grid[kk]), color='k', alpha=0.075)
+        for jj in range(len(r_np_ticks)):
+            ax1.text(np.deg2rad(45), np.full(100,sorted(R_np_grid)[jj])[0]+0.02, r_np_ticks[jj], alpha=0.5)
+        ax1.grid(axis='x', alpha=0.375)   
+        
         # South pole is axis on the right
         ax2 = plt.subplot(122, projection="polar")
         
         # Exact same process for South...
         mesh_sp = plt.pcolormesh(azimuth, R_sp, sp_bright_props, norm=colors.PowerNorm(gamma=0.7), vmin=0, vmax = max_brightness ,cmap=custom_map)
-        ax2.scatter(az_scat[south_photons_pos], R_scat_sp, s=5, color='black', alpha=0.2)
+        #ax2.scatter(az_scat[south_photons_pos], R_scat_sp, s=5, color='black', alpha=0.2)
         #... except 0 degress is pointed at the top for South pole
         ax2.set_theta_offset(+np.pi/2)
         ax2.set_ylim(0,max(R_sp))
         ax2.set_yticklabels([])
         ax2.set_title('South Pole', size = 16, y=1.08)
-        plt.grid(alpha=0.5)
+        ax2.set_yticklabels([])
+        for kk in range(len(R_sp_grid)):
+            ax2.plot(2*np.pi - np.linspace(0, 2*np.pi, 100), np.full(100,R_sp_grid[kk]), color='k', alpha=0.075)
+        for jj in range(len(r_np_ticks)):
+            ax2.text(np.deg2rad(135), np.full(100,sorted(R_sp_grid)[jj])[0]+0.02, r_sp_ticks[jj], alpha=0.5)
+        ax2.grid(axis='x', alpha=0.375)   
         plt.tight_layout()
         
         # creating and formatting the color bar at the bottom of the plots
@@ -752,7 +785,7 @@ if time_int_decision == 'y':
         fig.subplots_adjust(top=1.3)
         fig.suptitle('ObsID %s (%s %02i %02i:%02i - %s %02i %02i:%02i)'                          %(obs_id,plot_time[i].strftime("%b"),plot_time[i].day,plot_time[i].hour, plot_time[i].minute,                            plot_time[i+1].strftime("%b"),plot_time[i+1].day,plot_time[i+1].hour, plot_time[i+1].minute),                                                                        size=16)
         # save polar plots to same folder as event file
-        plt.savefig(str(folder_path) + '\%s_polar_plot_timeint%03i.png' % (obs_id,i+1), bbox_inches='tight')#, dpi=500)
+        plt.savefig(str(folder_path) + '\%s_polar_plot_timeint%03i_zoom_v2.png' % (obs_id,i+1), bbox_inches='tight')#, dpi=500)
         plt.close()
         print('Polar plot complete for interval %s'%(i+1))
 else:
@@ -772,8 +805,8 @@ else:
     south_photons_pos = np.where(sup_lat_list <= 90)[0] 
     # perfoming coordinate transformation on the photon position to be plotted on polar plot 
     az_scat = np.deg2rad(sup_lon_list)
-    R_scat_np = 90.0*np.sqrt(1/(1/(ratio*np.tan(((np.deg2rad(sup_lat_list[north_photons_pos])-np.pi))))**2 + 1))
-    R_scat_sp = 90.0*np.sqrt(1/(1/(ratio*np.tan(((np.deg2rad(sup_lat_list[south_photons_pos])-np.pi))))**2 + 1))
+    R_scat_np = np.sqrt(1/(1/(ratio*np.tan(((np.deg2rad(sup_lat_list[north_photons_pos])-np.pi))))**2 + 1))
+    R_scat_sp = np.sqrt(1/(1/(ratio*np.tan(((np.deg2rad(sup_lat_list[south_photons_pos])-np.pi))))**2 + 1))
     
     # creating figure for North and South polar plots
     fig = plt.figure(figsize=(10,10))
@@ -783,29 +816,40 @@ else:
     # creating the 2D polar plot with transformed values and custom color map...    
     mesh_np = plt.pcolormesh(azimuth, R_np, np_bright_props, cmap = custom_map,                            norm=colors.PowerNorm(gamma=0.7), vmin=0, vmax = max_brightness)
     #...with a scatter plot of the photon positions
-    ax1.scatter(az_scat[north_photons_pos], R_scat_np, s=5, color='black', alpha = 0.2)
+    #ax1.scatter(az_scat[north_photons_pos], R_scat_np, s=5, color='black', alpha = 0.2)
     # editing polar plot to show 180 degrees at the top for North, setting the appropriate limits and other plotting functions
     ax1.set_theta_direction(-1)
     ax1.set_theta_offset(-np.pi/2)
-    ax1.set_ylim(0,90)
-    ax1.set_yticks(np.arange(0, 91, 10))
-    ax1.set_yticklabels(ax1.get_yticks()[::-1])
-    ax1.set_yticklabels([])
+    ax1.set_ylim(0,max(R_np))
+    #ax1.set_yticks(np.arange(0, 91, 10))
+    #ax1.set_yticklabels(ax1.get_yticks()[::-1])
+    #ax1.set_yticklabels([])
     ax1.set_title('North Pole', size = 16, y=1.08)
-    plt.grid(alpha=0.7)
+    ax1.set_yticklabels([])
+    for kk in range(len(R_np_grid)):
+        ax1.plot(2*np.pi - np.linspace(0, 2*np.pi, 100), np.full(100,R_np_grid[kk]), color='k', alpha=0.075)
+    for jj in range(len(r_np_ticks)):
+        ax1.text(np.deg2rad(45), np.full(100,sorted(R_np_grid)[jj])[0]+0.02, r_np_ticks[jj], alpha=0.5)
+    ax1.grid(axis='x', alpha=0.375)   
+        
 
     # South pole is axis on the right
     ax2 = plt.subplot(122, projection="polar")
     mesh = plt.pcolormesh(azimuth, R_sp, sp_bright_props,                         cmap=custom_map,norm=colors.PowerNorm(gamma=0.7), vmin=0, vmax = max_brightness)
-    ax2.scatter(az_scat[south_photons_pos], R_scat_sp, s=5, color='black', alpha=0.2)
+    #ax2.scatter(az_scat[south_photons_pos], R_scat_sp, s=5, color='black', alpha=0.2)
     #... except 0 degress is pointed at the top for South pole
     ax2.set_theta_offset(+np.pi/2)
-    ax2.set_ylim(0,90)
-    ax2.set_yticks(np.arange(0, 91, 10))
-    ax2.set_yticklabels(ax2.get_yticks()[::-1])    
-    ax2.set_yticklabels([])
+    ax2.set_ylim(0,max(R_sp))
+   # ax2.set_yticks(np.arange(0, 91, 10))
+    #ax2.set_yticklabels(ax2.get_yticks()[::-1])    
+  #  ax2.set_yticklabels([])
     ax2.set_title('South Pole', size = 16, y=1.08)
-    plt.grid(alpha=0.7)
+    ax2.set_yticklabels([])
+    for kk in range(len(R_sp_grid)):
+        ax2.plot(2*np.pi - np.linspace(0, 2*np.pi, 100), np.full(100,R_sp_grid[kk]), color='k', alpha=0.075)
+    for jj in range(len(r_np_ticks)):
+        ax2.text(np.deg2rad(135), np.full(100,sorted(R_sp_grid)[jj])[0]+0.02, r_sp_ticks[jj], alpha=0.5)
+    ax2.grid(axis='x', alpha=0.375)   
     plt.tight_layout()
     # creating and formatting the color bar at the bottom of the plot    
     fig.subplots_adjust()
@@ -817,11 +861,10 @@ else:
     fig.subplots_adjust(top=1.3)
     fig.suptitle('Chandra X-ray Jupiter Polar Maps - ObsID %s (%s %02i %02i:%02i - %s %02i %02i:%02i)' %(obs_id, plot_time[0].strftime("%b"),                                                                        plot_time[0].day,plot_time[0].hour, plot_time[0].minute,                                                                        plot_time[-1].strftime("%b"), plot_time[-1].day,plot_time[-1].hour,                                                                        plot_time[-1].minute), size=16)
     # save polar plots to same folder as event file             
-    plt.savefig( str(folder_path) + '\%s_polar_plot_full_obs.png' % (obs_id), bbox_inches='tight',dpi=500)
+    plt.savefig( str(folder_path) + '\%s_polar_plot_full_obs_v4.png' % (obs_id), bbox_inches='tight',dpi=500)
     print('')
     print('Polar plot complete for full observation')
-
-
+    
 # The next few blocks of code is for when a time interval has been selected. The plots for both North and South are split into time intervals to observe the traversal of the hot spot throughout the observation. The format is similar to the previous polar plots.
 
 # In[35]:
